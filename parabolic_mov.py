@@ -5,6 +5,9 @@ WIDTH = 1280
 HEIGHT = 720
 FPS = 30
 
+all_inital_velocity = 100
+all_initial_angle = 37
+
 '''
     Parabolic movement equation:
     r(t) = ( x_0 + v_0x(t) )i + ( -(g(t)^2)/2 + v_0yt + y_0 )j
@@ -19,6 +22,7 @@ def time_generator(start, end, step):
         start += step
     return numbers
 
+
 class Particle(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
@@ -26,17 +30,19 @@ class Particle(pygame.sprite.Sprite):
         self.rect = pygame.Rect(10, HEIGHT-30, 20, 20)
         self.image = pygame.Surface((50,50), pygame.SRCALPHA)
         pygame.draw.circle(self.image, (255, 0, 0), (10, 10), 10)
-        self.initial_velocity = 100
-        self.initial_angle = 53
+        self.initial_velocity = all_inital_velocity
+        self.initial_angle = all_initial_angle
         self.gravity = 10
         self.x_initial = 10
         self.y_initial = HEIGHT - 30
         self.time_elapsed = 0
 
+
     def flight_time(self, initial_velocity, initial_angle, gravity):
         theta = math.radians(initial_angle)
         time = ( 2 * initial_velocity * math.sin(theta) ) / gravity
         return time
+
 
     def update(self):
         initial_angle = math.radians(self.initial_angle)
@@ -46,45 +52,15 @@ class Particle(pygame.sprite.Sprite):
 
         if self.time_elapsed > self.flight_time(self.initial_velocity, self.initial_angle, self.gravity):
             self.time_elapsed = 0
+
         '''
             x(t) = x_0 + v_0x(t)
             y(t) = y_0 + v_0yt - (g(t)^2)/2
         '''
+
         self.rect.x = self.x_initial + initial_velocity_x * self.time_elapsed
         self.rect.y = self.y_initial - (initial_velocity_y * self.time_elapsed - 0.5 * self.gravity * self.time_elapsed**2)
-        if self.rect.left > WIDTH:
-            self.rect.right = 30
-            self.rect.bottom = HEIGHT - 10
 
-
-class VelocityX(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = pygame.Surface((30, 60), pygame.SRCALPHA)
-        pygame.draw.line(self.image, (0, 0, 255), (15, 60), (15, 0), 2)
-        self.rect = self.image.get_rect()
-        self.initial_velocity = 100
-        self.initial_angle = 53
-        self.gravity = 10
-        self.x_initial = 4
-        self.y_initial = HEIGHT - 80
-        self.time_elapsed = 0
-    
-    def flight_time(self, initial_velocity, initial_angle, gravity):
-        theta = math.radians(initial_angle)
-        time = ( 2 * initial_velocity * math.sin(theta) ) / gravity
-        return time
-
-    def update(self):
-        initial_angle = math.radians(self.initial_angle)
-        initial_velocity_x = self.initial_velocity * math.cos(initial_angle)
-        initial_velocity_y = self.initial_velocity * math.sin(initial_angle)
-        self.time_elapsed += 1 /FPS
-
-        if self.time_elapsed > self.flight_time(self.initial_velocity, self.initial_angle, self.gravity):
-            self.time_elapsed = 0
-        self.rect.x = self.x_initial + initial_velocity_x * self.time_elapsed
-        self.rect.y = self.y_initial - (initial_velocity_y * self.time_elapsed - 0.5 * self.gravity * self.time_elapsed**2)
         if self.rect.left > WIDTH:
             self.rect.right = 30
             self.rect.bottom = HEIGHT - 10
@@ -93,20 +69,22 @@ class VelocityX(pygame.sprite.Sprite):
 class VelocityY(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
-        self.image = pygame.Surface((60,30), pygame.SRCALPHA)
-        pygame.draw.line(self.image, (0, 0, 255), (0, 15), (60, 15), 2)
+        self.image = pygame.Surface((30, 60), pygame.SRCALPHA)
+        pygame.draw.line(self.image, (0, 0, 255), (15, 60), (15, 0), 2)
         self.rect = self.image.get_rect()
-        self.initial_velocity = 100
-        self.initial_angle = 53
+        self.initial_velocity = all_inital_velocity
+        self.initial_angle = all_initial_angle
         self.gravity = 10
-        self.x_initial = 20
-        self.y_initial = HEIGHT - 35
+        self.x_initial = 4
+        self.y_initial = HEIGHT - 80
         self.time_elapsed = 0
-    
+
+
     def flight_time(self, initial_velocity, initial_angle, gravity):
         theta = math.radians(initial_angle)
         time = ( 2 * initial_velocity * math.sin(theta) ) / gravity
         return time
+
 
     def update(self):
         initial_angle = math.radians(self.initial_angle)
@@ -116,8 +94,47 @@ class VelocityY(pygame.sprite.Sprite):
 
         if self.time_elapsed > self.flight_time(self.initial_velocity, self.initial_angle, self.gravity):
             self.time_elapsed = 0
+
         self.rect.x = self.x_initial + initial_velocity_x * self.time_elapsed
         self.rect.y = self.y_initial - (initial_velocity_y * self.time_elapsed - 0.5 * self.gravity * self.time_elapsed**2)
+
+        if self.rect.left > WIDTH:
+            self.rect.right = 30
+            self.rect.bottom = HEIGHT - 10
+
+
+class VelocityX(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((60,30), pygame.SRCALPHA)
+        pygame.draw.line(self.image, (0, 0, 255), (0, 15), (60, 15), 2)
+        self.rect = self.image.get_rect()
+        self.initial_velocity = all_inital_velocity
+        self.initial_angle = all_initial_angle
+        self.gravity = 10
+        self.x_initial = 20
+        self.y_initial = HEIGHT - 35
+        self.time_elapsed = 0
+
+
+    def flight_time(self, initial_velocity, initial_angle, gravity):
+        theta = math.radians(initial_angle)
+        time = ( 2 * initial_velocity * math.sin(theta) ) / gravity
+        return time
+
+
+    def update(self):
+        initial_angle = math.radians(self.initial_angle)
+        initial_velocity_x = self.initial_velocity * math.cos(initial_angle)
+        initial_velocity_y = self.initial_velocity * math.sin(initial_angle)
+        self.time_elapsed += 1 /FPS
+
+        if self.time_elapsed > self.flight_time(self.initial_velocity, self.initial_angle, self.gravity):
+            self.time_elapsed = 0
+
+        self.rect.x = self.x_initial + initial_velocity_x * self.time_elapsed
+        self.rect.y = self.y_initial - (initial_velocity_y * self.time_elapsed - 0.5 * self.gravity * self.time_elapsed**2)
+
         if self.rect.left > WIDTH:
             self.rect.right = 30
             self.rect.bottom = HEIGHT - 10
@@ -139,18 +156,56 @@ sprites.add(particle)
 sprites.add(velocity_x)
 sprites.add(velocity_y)
 
+# For the max height
+height_list = [-1]
+max_height_line_pos = (0, 0)
+max_height_line_end = (0, 0)
+
+# For the max range
+width_list = [-1]
+max_width_list_pos = (0,0)
+max_width_list_end = (0,0)
+
+
 while running:
     clock.tick(FPS)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == pygame.KEYDOWN:
+
+        if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
                 paused = not paused
+
     if not paused:
         sprites.update()
+        # For the max height
+        if len( height_list ) <= 2:
+            height_list.append( 690 - particle.rect.y )
+
+        if height_list[0] > height_list[1] and len( height_list ) <= 2 :
+            max_height_line_pos = ( int( particle.rect.x ), int( HEIGHT - 10 ) )
+            max_height_line_end = ( int( particle.rect.x ), int( particle.rect.y + 5 ) )
+            pygame.draw.line(screen, 'green', max_height_line_pos, max_height_line_end, 2)
+
+        if height_list[0] <= height_list[1] and len( height_list ) <= 2:
+            height_list.remove(height_list[0])
+
+        # For the max width
+        if len( width_list ) <= 2:
+            width_list.append( particle.rect.x )
+        if width_list[0] <= width_list[1] and len( width_list ) <= 2:
+            max_width_list_pos = ( 10, HEIGHT - 20 )
+            max_width_list_end = ( int( particle.rect.x ), HEIGHT - 20 )
+        if width_list[0] <= width_list[1] and len(width_list) <= 2:
+            width_list.remove(width_list[0])
+
     screen.fill('black')
     sprites.draw(screen)
+
+    pygame.draw.line(screen, 'white', max_width_list_pos, max_width_list_end, 2)
+
+    pygame.draw.line(screen, 'green', max_height_line_pos, max_height_line_end, 2)
     pygame.draw.line(screen, 'green', (10, HEIGHT-10),(WIDTH, HEIGHT-10),2)
     pygame.draw.line(screen, 'green', (10, HEIGHT-10), (10, 0), 2)
 
@@ -167,6 +222,7 @@ while running:
 
     text_surface = font.render(velocity_x_text, True, text_color)
     screen.blit(text_surface, (210, 10))
+
     text_surface = font.render(velocity_y_text, True, text_color)
     screen.blit(text_surface, (210, 50))
 
@@ -177,5 +233,7 @@ while running:
 
     screen.blit(velocity_x.image, velocity_x.rect.topleft)
     screen.blit(velocity_y.image, velocity_y.rect.topleft)
+
     pygame.display.flip()
+
 pygame.quit()
