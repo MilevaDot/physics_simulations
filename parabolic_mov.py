@@ -5,8 +5,8 @@ WIDTH = 1280
 HEIGHT = 720
 FPS = 30
 
-all_inital_velocity = 100
-all_initial_angle = 37
+all_inital_velocity = 60
+all_initial_angle = 45
 
 '''
     Parabolic movement equation:
@@ -203,37 +203,43 @@ while running:
     screen.fill('black')
     sprites.draw(screen)
 
+    # Range max of the particle
     pygame.draw.line(screen, 'white', max_width_list_pos, max_width_list_end, 2)
 
-    pygame.draw.line(screen, 'green', max_height_line_pos, max_height_line_end, 2)
+    # Height max of the particle
+    pygame.draw.line(screen, 'white', max_height_line_pos, max_height_line_end, 2)
+
     pygame.draw.line(screen, 'green', (10, HEIGHT-10),(WIDTH, HEIGHT-10),2)
     pygame.draw.line(screen, 'green', (10, HEIGHT-10), (10, 0), 2)
 
+    # ========================================================= #
+    ##### Start text in screen #####
     position_x_text = 'Position x: %s' % ( particle.rect.x - 10 )
-    position_y_text = 'Position y: %s' % ( 690 - particle.rect.y)
-
     text_surface = font.render(position_x_text, True, text_color)
     screen.blit(text_surface, (20, 10))
+
+    position_y_text = 'Position y: %s' % ( 690 - particle.rect.y)
     text_surface = font.render(position_y_text, True, text_color)
     screen.blit(text_surface, (20, 50))
 
     velocity_x_text = 'Velocity x: %s' % ( round( velocity_x.initial_velocity * math.cos(math.radians(velocity_x.initial_angle)), 4 ) )
-    velocity_y_text = 'Velocity y: %s' % ( round( velocity_y.initial_velocity * math.sin(math.radians(velocity_y.initial_angle)) - velocity_y.gravity * velocity_y.time_elapsed, 4 ) )
-
     text_surface = font.render(velocity_x_text, True, text_color)
     screen.blit(text_surface, (210, 10))
 
+    velocity_y_text = 'Velocity y: %s' % ( round( velocity_y.initial_velocity * math.sin(math.radians(velocity_y.initial_angle)) - velocity_y.gravity * velocity_y.time_elapsed, 4 ) )
     text_surface = font.render(velocity_y_text, True, text_color)
     screen.blit(text_surface, (210, 50))
 
-    time_text = 'Time: %s' % ( round( particle.time_elapsed, 2 ) )
-
-    text_surface = font.render(time_text, True, text_color)
+    header_initial_angle = 'Initial angle(°): %s' % ( particle.initial_angle )
+    text_surface = font.render(header_initial_angle, True, text_color)
     screen.blit(text_surface, (450, 10))
 
-    screen.blit(velocity_x.image, velocity_x.rect.topleft)
-    screen.blit(velocity_y.image, velocity_y.rect.topleft)
-
+    time_text = 'Time: %s' % ( round( particle.time_elapsed, 2 ) )
+    text_surface = font.render(time_text, True, text_color)
+    screen.blit(text_surface, (450, 50))
+    ##### End text in screen #####
+    # ========================================================= #
+    
     pygame.display.flip()
 
 pygame.quit()
