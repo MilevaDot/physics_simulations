@@ -5,8 +5,8 @@ WIDTH = 1280
 HEIGHT = 720
 FPS = 30
 
-all_inital_velocity = 60
-all_initial_angle = 45
+all_inital_velocity = 100
+all_initial_angle = 53
 
 '''
     Parabolic movement equation:
@@ -36,6 +36,7 @@ class Particle(pygame.sprite.Sprite):
         self.x_initial = 10
         self.y_initial = HEIGHT - 30
         self.time_elapsed = 0
+        self.max_range = False
 
 
     def flight_time(self, initial_velocity, initial_angle, gravity):
@@ -64,6 +65,7 @@ class Particle(pygame.sprite.Sprite):
         if self.rect.left > WIDTH:
             self.rect.right = 30
             self.rect.bottom = HEIGHT - 10
+            self.max_range = True
 
 
 class VelocityY(pygame.sprite.Sprite):
@@ -160,6 +162,7 @@ sprites.add(velocity_y)
 height_list = [-1]
 max_height_line_pos = (0, 0)
 max_height_line_end = (0, 0)
+max_height_arrive = False
 
 # For the max range
 width_list = [-1]
@@ -187,6 +190,7 @@ while running:
             max_height_line_pos = ( int( particle.rect.x ), int( HEIGHT - 10 ) )
             max_height_line_end = ( int( particle.rect.x ), int( particle.rect.y + 5 ) )
             pygame.draw.line(screen, 'green', max_height_line_pos, max_height_line_end, 2)
+            max_height_arrive = True
 
         if height_list[0] <= height_list[1] and len( height_list ) <= 2:
             height_list.remove(height_list[0])
@@ -194,9 +198,11 @@ while running:
         # For the max width
         if len( width_list ) <= 2:
             width_list.append( particle.rect.x )
+
         if width_list[0] <= width_list[1] and len( width_list ) <= 2:
             max_width_list_pos = ( 10, HEIGHT - 20 )
             max_width_list_end = ( int( particle.rect.x ), HEIGHT - 20 )
+
         if width_list[0] <= width_list[1] and len(width_list) <= 2:
             width_list.remove(width_list[0])
 
@@ -205,9 +211,11 @@ while running:
 
     # Range max of the particle
     pygame.draw.line(screen, 'white', max_width_list_pos, max_width_list_end, 2)
+    width_max = width_list
 
     # Height max of the particle
     pygame.draw.line(screen, 'white', max_height_line_pos, max_height_line_end, 2)
+    height_max = height_list
 
     pygame.draw.line(screen, 'green', (10, HEIGHT-10),(WIDTH, HEIGHT-10),2)
     pygame.draw.line(screen, 'green', (10, HEIGHT-10), (10, 0), 2)
@@ -237,9 +245,20 @@ while running:
     time_text = 'Time: %s' % ( round( particle.time_elapsed, 2 ) )
     text_surface = font.render(time_text, True, text_color)
     screen.blit(text_surface, (450, 50))
+
+    if max_height_arrive:
+        height_text = 'Max height: %s' % ( max( height_max ) )
+        text_surface = font.render(height_text, True, text_color)
+        screen.blit(text_surface, (690, 10))
+
+    # if particle.max_range:
+    width_text = 'Max width: %s' % ( max( width_max ) )
+    text_surface = font.render(width_text, True, text_color)
+    screen.blit(text_surface, (690, 50))
+
     ##### End text in screen #####
     # ========================================================= #
-    
+
     pygame.display.flip()
 
 pygame.quit()
