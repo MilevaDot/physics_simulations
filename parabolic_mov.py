@@ -72,7 +72,6 @@ class VelocityY(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
         self.image = pygame.Surface((30, 60), pygame.SRCALPHA)
-        pygame.draw.line(self.image, (0, 0, 255), (15, 60), (15, 0), 2)
         self.rect = self.image.get_rect()
         self.initial_velocity = all_inital_velocity
         self.initial_angle = all_initial_angle
@@ -259,6 +258,16 @@ while running:
     ##### End text in screen #####
     # ========================================================= #
 
+
+    # ========================================================= #
+    # Scale for the Y component of velocity  
+
+    scale_y = round( (velocity_y.initial_velocity * math.sin(math.radians(velocity_y.initial_angle)) - velocity_y.gravity * velocity_y.time_elapsed) * 60/ velocity_y.initial_velocity, 2)
+    scale_velocity_y = 60 - scale_y
+    pygame.draw.line(screen, 'blue', (particle.rect.x + 8, particle.rect.y + 10), (particle.rect.x + 8, particle.rect.y - 50 + scale_velocity_y), 2)
     pygame.display.flip()
+
+    ##### End of scale #####
+    # ========================================================= #
 
 pygame.quit()
