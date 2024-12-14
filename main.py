@@ -28,7 +28,7 @@ def lens_simulation():
     CENTER_X, CENTER_Y = WIDTH // 2, HEIGHT // 2
     LENS_HEIGHT = int(0.8 * HEIGHT)
     MAX_OBJECT_HEIGHT = LENS_HEIGHT // 2
-    FOCAL_LENGTH = 150  # Distancia focal arbitraria
+    FOCAL_LENGTH = 150
 
     # Colores
     BLACK = (0, 0, 0)
@@ -38,7 +38,6 @@ def lens_simulation():
     GREEN = (0, 255, 0)
     YELLOW = (255, 255, 0)
 
-    # Funciones auxiliares
     def draw_arrow(screen, color, start, end, arrow_size=10):
         pygame.draw.line(screen, color, start, end, 2)
         angle = math.atan2(end[1] - start[1], end[0] - start[0])
@@ -86,12 +85,11 @@ def lens_simulation():
 
         denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
         if denominator == 0:
-            return None  # Las rectas son paralelas o coinciden
+            return None
 
         px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denominator
         py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denominator
         return int(px), int(py)
-
 
     def draw_principal_rays(lens, obj, font):
         f1 = (CENTER_X - FOCAL_LENGTH, CENTER_Y)
@@ -143,8 +141,7 @@ def lens_simulation():
         intersection = calculate_intersection(f2, ray_f2_end, ray_parallel_end, (WIDTH - 20, lens_intersect_y))
         if intersection:
             draw_arrow(SCREEN, GREEN, (intersection[0], CENTER_Y), intersection)
-    # Lógica principal
-    # def main():
+
     obj = ObjectArrow()
     lens = Lens(converging=True)
     font = pygame.font.Font(None, 36)
@@ -266,10 +263,8 @@ def magnetic_field_simulation():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = event.pos
                 if button_rect.collidepoint(mouse_x, mouse_y):
-                    # Al hacer clic en el botón, agregamos un nuevo imán
                     magnets.append((mouse_x, mouse_y, 1, -1))  # Nuevo dipolo en la posición del clic
                 else:
-                    # Detectar si se hace clic en un imán para moverlo
                     for i, magnet in enumerate(magnets):
                         x, y, _, _ = magnet
                         if (x - MAGNET_WIDTH // 2 <= mouse_x <= x + MAGNET_WIDTH // 2 and
@@ -283,16 +278,14 @@ def magnetic_field_simulation():
                 x, y, mx, my = magnets[selected_magnet_index]
                 magnets[selected_magnet_index] = (mouse_x, mouse_y, mx, my)
 
-        # Dibujar los imanes y monopolos
         for (x, y, mx, my) in magnets:
-            if mx is not None and my is not None:  # Dipolo
+            if mx is not None and my is not None:
                 pygame.draw.rect(SCREEN, (255, 0, 0), (x - MAGNET_WIDTH // 2, y - MAGNET_HEIGHT // 2, MAGNET_WIDTH, MAGNET_HEIGHT // 2))  # Polo norte arriba (rojo)
                 pygame.draw.rect(SCREEN, (0, 0, 255), (x - MAGNET_WIDTH // 2, y, MAGNET_WIDTH, MAGNET_HEIGHT // 2))  # Polo sur abajo (azul)
-            else:  # Monopolo
+            else:
                 color = (255, 0, 0) if mx > 0 else (0, 0, 255)
                 pygame.draw.circle(SCREEN, color, (x, y), MONOPOLE_RADIUS)
 
-        # Dibujar las líneas de campo
         for y in range(0, HEIGHT, LINE_SPACING):
             for x in range(0, WIDTH, LINE_SPACING):
                 Bx, By = magnetic_field(x, y, magnets)
@@ -304,7 +297,6 @@ def magnetic_field_simulation():
                     end_y = y + By * ARROW_LENGTH
                     draw_arrow(SCREEN, (0, 0, 0), (x, y), (end_x, end_y), ARROW_HEAD_SIZE)
 
-        # Dibujar el botón
         draw_button(SCREEN, "Agregar imán")
 
         pygame.display.update()
@@ -361,14 +353,9 @@ def interference():
         pygame.display.update()
 
 
-
-
-
-
 def transversal_wave(amplitude, period):
     pygame.display.set_caption('Onda Transversal: Simulación')
 
-    # frequency = 0.1
     frequency = 1 / period
     speed = 0.5
     phase = 0
@@ -618,8 +605,6 @@ def type_wave():
 
         SPHERIC.changeColor(MOUSE_POS)
         SPHERIC.update(SCREEN)
-        # LONGITUDINAL.changeColor(MOUSE_POS)
-        # LONGITUDINAL.update(SCREEN)
         TRANSVERSAL.changeColor(MOUSE_POS)
         TRANSVERSAL.update(SCREEN)
 
@@ -636,7 +621,6 @@ def type_wave():
         pygame.display.update()
 
 
-# def equipotencial_surface(charge):
 def equipotencial_surface():
     pygame.display.set_caption('Superficies equipotenciales: Simulación')
 
@@ -967,7 +951,7 @@ def parabolic_movement(initial_velocity, initial_angle):
 
 
         # ========================================================= #
-        ### Trayectory ###
+        ### Trajectory ###
         trajectory.append((position_x, position_y))
         if len(trajectory) > 1:
             pygame.draw.lines(SCREEN, 'White', False, trajectory, 1)
@@ -1214,7 +1198,6 @@ def main_menu():
                 if SHM_BUTTON.checkForInput(MENU_MOUSE_POS):
                     pendulum_length()
                 if EQUIPOTENTIALS_BUTTON.checkForInput(MENU_MOUSE_POS):
-                    # charge()
                     equipotencial_surface()
                 if WAVES_BUTTON.checkForInput(MENU_MOUSE_POS):
                     type_wave()
