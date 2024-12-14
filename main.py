@@ -2,6 +2,7 @@ import pygame
 import pygame_gui
 import math
 import sys
+import time
 from button import Button
 
 pygame.init()
@@ -20,31 +21,312 @@ def get_font(size):
     # return pygame.font.Font('assets/static/font.ttf', size)
     return pygame.font.Font('assets/static/Teko-Medium.ttf', size)
 
-def interference():
-    pygame.display.set_caption('Interferencia: Simulación')
-    wave_sources = []
-    amplitude = 100
-    wavelength = 20
-    speed = 1
-    time = 0
-    def calculate_amplitude(x, y, sources, t):
-        total_amplitude = 0
-        for sx, sy, start_time in sources:
-            distance = math.sqrt((x - sx) ** 2 + (y - sy) ** 2)
-            elapsed_time = t - start_time
-            # Solo calcular si la onda ha alcanzado el punto
-            if distance <= elapsed_time * speed:
-                wave_amplitude = amplitude * math.sin(2 * math.pi * (distance / wavelength - elapsed_time)) + 20
-                total_amplitude += wave_amplitude
-        return total_amplitude
+
+def lens_simulation():
+    pygame.display.set_caption('Simulación de Lentes')
+
+    CENTER_X, CENTER_Y = WIDTH // 2, HEIGHT // 2
+    LENS_HEIGHT = int(0.8 * HEIGHT)
+    MAX_OBJECT_HEIGHT = LENS_HEIGHT // 2
+    FOCAL_LENGTH = 150  # Distancia focal arbitraria
+
+    # Colores
+    BLACK = (0, 0, 0)
+    WHITE = (255, 255, 255)
+    RED = (255, 0, 0)
+    BLUE = (0, 0, 255)
+    GREEN = (0, 255, 0)
+    YELLOW = (255, 255, 0)
+
+    # Funciones auxiliares
+    def draw_arrow(screen, color, start, end, arrow_size=10):
+        pygame.draw.line(screen, color, start, end, 2)
+        angle = math.atan2(end[1] - start[1], end[0] - start[0])
+        arrow_points = [
+            (end[0] - arrow_size * math.cos(angle - math.pi / 6), end[1] - arrow_size * math.sin(angle - math.pi / 6)),
+            (end[0] - arrow_size * math.cos(angle + math.pi / 6), end[1] - arrow_size * math.sin(angle + math.pi / 6))
+        ]
+        pygame.draw.polygon(screen, color, [end, *arrow_points])
+
+    class ObjectArrow:
+        def __init__(self):
+            self.x = CENTER_X - 300
+            self.height = MAX_OBJECT_HEIGHT // 2
+            self.dragging = False
+
+        def draw(self):
+            pygame.draw.line(SCREEN, YELLOW, (self.x, CENTER_Y), (self.x, CENTER_Y - self.height), 5)
+            pygame.draw.polygon(SCREEN, YELLOW, [(self.x, CENTER_Y - self.height), (self.x - 10, CENTER_Y - self.height + 20), (self.x + 10, CENTER_Y - self.height + 20)])
+
+        def update(self, mouse_x, mouse_y):
+            if self.dragging:
+                self.x = max(0, min(mouse_x, CENTER_X))
+                self.height = min(max(CENTER_Y - mouse_y, 10), MAX_OBJECT_HEIGHT)
+
+    class Lens:
+        def __init__(self, converging=True):
+            self.converging = converging
+
+        def draw(self):
+            if self.converging:
+                pygame.draw.line(SCREEN, WHITE, (0, CENTER_Y), (WIDTH, CENTER_Y), 1)
+                pygame.draw.line(SCREEN, WHITE, (CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X, CENTER_Y + LENS_HEIGHT // 2), 5)
+                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X - 20, CENTER_Y - LENS_HEIGHT // 2 + 20), (CENTER_X + 20, CENTER_Y - LENS_HEIGHT // 2 + 20)])
+                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y + LENS_HEIGHT // 2), (CENTER_X - 20, CENTER_Y + LENS_HEIGHT // 2 - 20), (CENTER_X + 20, CENTER_Y + LENS_HEIGHT // 2 - 20)])
+            else:
+                pygame.draw.line(SCREEN, WHITE, (CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X, CENTER_Y + LENS_HEIGHT // 2), 5)
+                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X + 20, CENTER_Y - LENS_HEIGHT // 2 + 20), (CENTER_X - 20, CENTER_Y - LENS_HEIGHT // 2 + 20)])
+                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y + LENS_HEIGHT // 2), (CENTER_X + 20, CENTER_Y + LENS_HEIGHT // 2 - 20), (CENTER_X - 20, CENTER_Y + LENS_HEIGHT // 2 - 20)])
+
+    def calculate_intersection(line1_start, line1_end, line2_start, line2_end):
+        x1, y1 = line1_start
+        x2, y2 = line1_end
+        x3, y3 = line2_start
+        x4, y4 = line2_end
+
+        denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if denominator == 0:
+            return None  # Las rectas son paralelas o coinciden
+
+        px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denominator
+        py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denominator
+        return int(px), int(py)
+
+
+    def draw_principal_rays(lens, obj, font):
+        f1 = (CENTER_X - FOCAL_LENGTH, CENTER_Y)
+        f2 = (CENTER_X + FOCAL_LENGTH, CENTER_Y)
+        
+        pygame.draw.circle(SCREEN, RED, f1, 5)
+        pygame.draw.circle(SCREEN, RED, f2, 5)
+
+        font = pygame.font.Font(None, 36)
+        f1_label = font.render("F1", True, WHITE)
+        f2_label = font.render("F2", True, WHITE)
+
+        SCREEN.blit(f1_label, (f1[0] - 20, f1[1] + 10))
+        SCREEN.blit(f2_label, (f2[0] + 10, f2[1] + 10))
+
+        if lens.converging:
+            ray_start = (obj.x, CENTER_Y - obj.height)
+            ray_focus_end = f2
+            ray_parallel_end = (CENTER_X, CENTER_Y - obj.height)
+        else:
+            ray_start = (obj.x, CENTER_Y - obj.height)
+            ray_parallel_end = (CENTER_X, CENTER_Y - obj.height)
+            ray_focus_end = (CENTER_X - (CENTER_X - obj.x), CENTER_Y - (CENTER_Y - obj.height))
+
+        draw_arrow(SCREEN, BLUE, ray_start, ray_parallel_end)
+        draw_arrow(SCREEN, BLUE, ray_parallel_end, ray_focus_end)
+
+        if lens.converging:
+            ray_focus_start = (obj.x, CENTER_Y - obj.height)
+            slope = (f1[1] - ray_focus_start[1]) / (f1[0] - ray_focus_start[0])
+            lens_intersect_y = int(ray_focus_start[1] + slope * (CENTER_X - ray_focus_start[0]))
+            ray_parallel_end = (CENTER_X, lens_intersect_y)
+        else:
+            ray_focus_start = (obj.x, CENTER_Y - obj.height)
+            ray_parallel_end = f2
+        draw_arrow(SCREEN, BLUE, ray_focus_start, f1)
+        if lens.converging:
+            draw_arrow(SCREEN, BLUE, f1, ray_parallel_end)  # Esta es la que empieza en f1 y se va hasta la lente
+            draw_arrow(SCREEN, BLUE, ray_parallel_end, (WIDTH - 20,lens_intersect_y))  # Esta es la que empieza en la lente y se va a la derecha
+
+        if lens.converging:
+            ray_parallel_end_new = (CENTER_X, CENTER_Y - obj.height)
+            slope_f2 = (f2[1] - ray_parallel_end_new[1]) / (f2[0] - ray_parallel_end_new[0])  # Pendiente entre F2 y el borde derecho
+            max_x = WIDTH - 20
+            max_y = ray_parallel_end_new[1] + slope_f2 * (max_x - ray_parallel_end_new[0])
+            ray_f2_end = (max_x, max_y)
+            draw_arrow(SCREEN, BLUE, f2, ray_f2_end)  # Dibuja flecha desde F2 hacia la derecha hasta ray_f2_end
+
+        intersection = calculate_intersection(f2, ray_f2_end, ray_parallel_end, (WIDTH - 20, lens_intersect_y))
+        if intersection:
+            draw_arrow(SCREEN, GREEN, (intersection[0], CENTER_Y), intersection)
+    # Lógica principal
+    # def main():
+    obj = ObjectArrow()
+    lens = Lens(converging=True)
+    font = pygame.font.Font(None, 36)
+    running = True
+    while running:
+        SCREEN.fill(BLACK)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if obj.x - 20 < event.pos[0] < obj.x + 20 and CENTER_Y - obj.height - 20 < event.pos[1] < CENTER_Y:
+                    obj.dragging = True
+            elif event.type == pygame.MOUSEBUTTONUP:
+                obj.dragging = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    lens.converging = not lens.converging
+
+        if obj.dragging:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            obj.update(mouse_x, mouse_y)
+
+        lens.draw()
+        obj.draw()
+        draw_principal_rays(lens, obj, font)
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    pygame.quit()
+
+
+def magnetic_field_simulation():
+    pygame.display.set_caption('Simulación de Campo Magnético')
+
+    # WIDTH, HEIGHT = 800, 600
+    SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
+    BACKGROUND_COLOR = (255, 255, 255)
+    BUTTON_COLOR = (200, 200, 200)
+    BUTTON_HOVER_COLOR = (150, 150, 150)
+    BUTTON_TEXT_COLOR = (0, 0, 0)
+    BUTTON_WIDTH, BUTTON_HEIGHT = 150, 50
+
+    MAGNET_WIDTH = 30  # Tamaño del imán
+    MAGNET_HEIGHT = 90
+    MONOPOLE_RADIUS = 15  # Tamaño del monopolo
+    LINE_SPACING = 20  # Espacio entre las líneas de campo
+    ARROW_LENGTH = 12  # Tamaño de las flechas
+    ARROW_HEAD_SIZE = 6
+
+    button_rect = pygame.Rect(WIDTH - BUTTON_WIDTH - 20, HEIGHT - BUTTON_HEIGHT - 20, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+    def draw_button(screen, text):
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        if button_rect.collidepoint(mouse_x, mouse_y):
+            pygame.draw.rect(screen, BUTTON_HOVER_COLOR, button_rect)
+        else:
+            pygame.draw.rect(screen, BUTTON_COLOR, button_rect)
+        
+        font = pygame.font.SysFont(None, 30)
+        text_surface = font.render(text, True, BUTTON_TEXT_COLOR)
+        text_rect = text_surface.get_rect(center=button_rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def draw_arrow(screen, color, start, end, arrow_head_size):
+        pygame.draw.line(screen, color, start, end, 2)
+        angle = math.atan2(end[1] - start[1], end[0] - start[0])
+        arrow_head = [
+            (end[0] - arrow_head_size * math.cos(angle - math.pi / 6), end[1] - arrow_head_size * math.sin(angle - math.pi / 6)),
+            (end[0] - arrow_head_size * math.cos(angle + math.pi / 6), end[1] - arrow_head_size * math.sin(angle + math.pi / 6)),
+            end
+        ]
+        pygame.draw.polygon(screen, color, arrow_head)
+
+    def magnetic_field(px, py, magnets):
+        Bx = 0
+        By = 0
+        for (x, y, mx, my) in magnets:
+            if mx is not None and my is not None:  # Es un dipolo (imán)
+                dx_n = px - x
+                dy_n = py - y + MAGNET_HEIGHT // 4
+                dx_s = px - x
+                dy_s = py - y - MAGNET_HEIGHT // 4
+                r_squared_n = dx_n**2 + dy_n**2
+                r_squared_s = dx_s**2 + dy_s**2
+                if r_squared_n > 0 and r_squared_s > 0:
+                    # Campo saliendo desde el polo norte (rojo)
+                    Bn = 1 / r_squared_n
+                    Bx += Bn * dx_n / math.sqrt(r_squared_n)
+                    By += Bn * dy_n / math.sqrt(r_squared_n)
+                    # Campo entrando hacia el polo sur (azul)
+                    Bs = -1 / r_squared_s
+                    Bx += Bs * dx_s / math.sqrt(r_squared_s)
+                    By += Bs * dy_s / math.sqrt(r_squared_s)
+            else:  # Es un monopolo
+                dx = px - x
+                dy = py - y
+                r_squared = dx**2 + dy**2
+                if r_squared > 0:
+                    B = 1 / r_squared
+                    Bx += mx * B * dx / math.sqrt(r_squared)
+                    By += my * B * dy / math.sqrt(r_squared)
+        return Bx, By
+
+    magnets = [
+        (WIDTH // 2, HEIGHT // 2, 1, -1),  # Dipolo magnético inicial
+    ]
+
+    selected_magnet_index = None
 
     while True:
+        SCREEN.fill(BACKGROUND_COLOR)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = event.pos
+                if button_rect.collidepoint(mouse_x, mouse_y):
+                    # Al hacer clic en el botón, agregamos un nuevo imán
+                    magnets.append((mouse_x, mouse_y, 1, -1))  # Nuevo dipolo en la posición del clic
+                else:
+                    # Detectar si se hace clic en un imán para moverlo
+                    for i, magnet in enumerate(magnets):
+                        x, y, _, _ = magnet
+                        if (x - MAGNET_WIDTH // 2 <= mouse_x <= x + MAGNET_WIDTH // 2 and
+                            y - MAGNET_HEIGHT // 2 <= mouse_y <= y + MAGNET_HEIGHT // 2):
+                            selected_magnet_index = i
+                            break
+            if event.type == pygame.MOUSEBUTTONUP:
+                selected_magnet_index = None
+            if event.type == pygame.MOUSEMOTION and selected_magnet_index is not None:
+                mouse_x, mouse_y = event.pos
+                x, y, mx, my = magnets[selected_magnet_index]
+                magnets[selected_magnet_index] = (mouse_x, mouse_y, mx, my)
+
+        # Dibujar los imanes y monopolos
+        for (x, y, mx, my) in magnets:
+            if mx is not None and my is not None:  # Dipolo
+                pygame.draw.rect(SCREEN, (255, 0, 0), (x - MAGNET_WIDTH // 2, y - MAGNET_HEIGHT // 2, MAGNET_WIDTH, MAGNET_HEIGHT // 2))  # Polo norte arriba (rojo)
+                pygame.draw.rect(SCREEN, (0, 0, 255), (x - MAGNET_WIDTH // 2, y, MAGNET_WIDTH, MAGNET_HEIGHT // 2))  # Polo sur abajo (azul)
+            else:  # Monopolo
+                color = (255, 0, 0) if mx > 0 else (0, 0, 255)
+                pygame.draw.circle(SCREEN, color, (x, y), MONOPOLE_RADIUS)
+
+        # Dibujar las líneas de campo
+        for y in range(0, HEIGHT, LINE_SPACING):
+            for x in range(0, WIDTH, LINE_SPACING):
+                Bx, By = magnetic_field(x, y, magnets)
+                magnitude = math.sqrt(Bx**2 + By**2)
+                if magnitude > 0:
+                    Bx /= magnitude
+                    By /= magnitude
+                    end_x = x + Bx * ARROW_LENGTH
+                    end_y = y + By * ARROW_LENGTH
+                    draw_arrow(SCREEN, (0, 0, 0), (x, y), (end_x, end_y), ARROW_HEAD_SIZE)
+
+        # Dibujar el botón
+        draw_button(SCREEN, "Agregar imán")
+
+        pygame.display.update()
+
+
+def interference():
+    WAVE_EVENT = pygame.USEREVENT + 1
+    pygame.time.set_timer(WAVE_EVENT, 2000)
+    pygame.display.set_caption('Ondas: Simulación')
+
+    waves1 = []
+    waves2 = []
+
+    while True:
+        SCREEN.fill('Black')
         MENU_MOUSE_POS = pygame.mouse.get_pos()
-        BACK_MENU_BUTTON = Button(image=None, pos=(1220,80), text_input='Menú principal', font=get_font(20),
+        BACK_MENU_BUTTON = Button(image=None, pos=(1220, 80), text_input='Menú principal', font=get_font(20),
                                   base_color='#d7fcd4', hovering_color='Green')
-    
+
         BACK_MENU_BUTTON.changeColor(MENU_MOUSE_POS)
         BACK_MENU_BUTTON.update(SCREEN)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -52,45 +334,198 @@ def interference():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK_MENU_BUTTON.checkForInput(MENU_MOUSE_POS):
                     main_menu()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = event.pos
-                wave_sources.append((mouse_x, mouse_y, time))
+            if event.type == WAVE_EVENT:
+                waves1.append((320, 360, 0))
+                waves2.append((960, 360, 0))
 
+        for i, wave in enumerate(waves1):
+            x, y, radius = wave
+            if radius < WIDTH:
+                waves1[i] = (x, y, radius + 1)
+
+        for i, wave in enumerate(waves2):
+            x, y, radius = wave
+            if radius < WIDTH:
+                waves2[i] = (x, y, radius + 1)
+
+        for x in range(0, WIDTH, 5):
+            for y in range(0, HEIGHT, 5):
+                amplitude1 = sum([math.sin(math.sqrt((x - wx) ** 2 + (y - wy) ** 2) - r) for wx, wy, r in waves1 if r < WIDTH])
+                amplitude2 = sum([math.sin(math.sqrt((x - wx) ** 2 + (y - wy) ** 2) - r) for wx, wy, r in waves2 if r < WIDTH])
+                total_amplitude = amplitude1 + amplitude2
+                color_value = int((total_amplitude + 2) * 63.75)
+                color_value = max(0, min(255, color_value))
+                pygame.draw.circle(SCREEN, (color_value, color_value, 255 - color_value), (x, y), 2)
+
+        clock.tick(FPS)
+        pygame.display.update()
+
+
+
+
+
+
+def transversal_wave(amplitude, period):
+    pygame.display.set_caption('Onda Transversal: Simulación')
+
+    # frequency = 0.1
+    frequency = 1 / period
+    speed = 0.5
+    phase = 0
+
+    while True:
         SCREEN.fill('Black')
-        for x in range(0, 800):
-            for y in range(0, 600):
-                amplitude_at_point = calculate_amplitude(x, y, wave_sources, time)
-                color_value = 127.5 * (1 + math.sin(amplitude_at_point / amplitude))
-                color_value = int(max(0, min(255, color_value)))  # Limitar el valor entre 0 y 255
-                color = (color_value, color_value, color_value)
-                SCREEN.set_at((x, y), color)
+        MENU_MOUSE_POS = pygame.mouse.get_pos()
+        BACK_MENU_BUTTON = Button(image=None, pos=(1220, 80), text_input='Menú principal', font=get_font(20),
+                                  base_color='#d7fcd4', hovering_color='Green')
 
-        time += 1
-        pygame.display.flip()
-        clock.tick(60)
+        BACK_MENU_BUTTON.changeColor(MENU_MOUSE_POS)
+        BACK_MENU_BUTTON.update(SCREEN)
 
-def wave():
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if BACK_MENU_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    main_menu()
+
+        for x in range(0, WIDTH, 1):
+            y = 360 + int(amplitude * math.sin(frequency * (x + phase)))
+            pygame.draw.circle(SCREEN, (255, 0, 255), (x, y), 2)
+
+        phase += speed
+        clock.tick(FPS)
+        pygame.display.update()
+
+
+def transversal_period_wave(amplitude):
+    pygame.display.set_caption('Escoge el periodo')
+
+    while True:
+        MOUSE_POS = pygame.mouse.get_pos()
+        SCREEN.fill('Black')
+        TEXT = get_font(45).render('Escoge el periodo de la onda', True, 'White')
+        TEXT_RECT = TEXT.get_rect(center=(640, 140))
+        SCREEN.blit(TEXT, TEXT_RECT)
+
+
+        PERIOD5 = Button(image=None, pos=(400, 360), text_input='5', font=get_font(25), base_color='White', hovering_color='Green')
+        PERIOD10 = Button(image=None, pos=(600, 360), text_input='10', font=get_font(25), base_color='White', hovering_color='Green')
+        PERIOD40 = Button(image=None, pos=(800, 360), text_input='40', font=get_font(25), base_color='White', hovering_color='Green')
+        PERIOD80 = Button(image=None, pos=(400, 560), text_input='80', font=get_font(25), base_color='White', hovering_color='Green')
+        PERIOD100 = Button(image=None, pos=(600, 560), text_input='100', font=get_font(25), base_color='White', hovering_color='Green')
+        PERIOD200 = Button(image=None, pos=(800, 560), text_input='200', font=get_font(25), base_color='White', hovering_color='Green')
+
+        PERIOD5.changeColor(MOUSE_POS)
+        PERIOD5.update(SCREEN)
+        PERIOD10.changeColor(MOUSE_POS)
+        PERIOD10.update(SCREEN)
+        PERIOD40.changeColor(MOUSE_POS)
+        PERIOD40.update(SCREEN)
+        PERIOD80.changeColor(MOUSE_POS)
+        PERIOD80.update(SCREEN)
+        PERIOD100.changeColor(MOUSE_POS)
+        PERIOD100.update(SCREEN)
+        PERIOD200.changeColor(MOUSE_POS)
+        PERIOD200.update(SCREEN)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if PERIOD5.checkForInput(MOUSE_POS):
+                    transversal_wave(amplitude, 5)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if PERIOD10.checkForInput(MOUSE_POS):
+                    transversal_wave(amplitude, 10)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if PERIOD40.checkForInput(MOUSE_POS):
+                    transversal_wave(amplitude, 40)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if PERIOD80.checkForInput(MOUSE_POS):
+                    transversal_wave(amplitude, 80)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if PERIOD100.checkForInput(MOUSE_POS):
+                    transversal_wave(amplitude, 100)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if PERIOD200.checkForInput(MOUSE_POS):
+                    transversal_wave(amplitude, 200)
+        pygame.display.update()
+
+
+def transversal_amplitud_wave():
+    pygame.display.set_caption('Escoge la amplitud')
+
+    while True:
+        MOUSE_POS = pygame.mouse.get_pos()
+        SCREEN.fill('Black')
+        TEXT = get_font(45).render('Escoge la amplitud de la onda', True, 'White')
+        TEXT_RECT = TEXT.get_rect(center=(640, 140))
+        SCREEN.blit(TEXT, TEXT_RECT)
+
+
+        AMPLITUDE50 = Button(image=None, pos=(400, 360), text_input='50', font=get_font(25), base_color='White', hovering_color='Green')
+        AMPLITUDE100 = Button(image=None, pos=(600, 360), text_input='100', font=get_font(25), base_color='White', hovering_color='Green')
+        AMPLITUDE150 = Button(image=None, pos=(800, 360), text_input='150', font=get_font(25), base_color='White', hovering_color='Green')
+        AMPLITUDE200 = Button(image=None, pos=(400, 560), text_input='200', font=get_font(25), base_color='White', hovering_color='Green')
+        AMPLITUDE250 = Button(image=None, pos=(600, 560), text_input='500', font=get_font(25), base_color='White', hovering_color='Green')
+        AMPLITUDE300 = Button(image=None, pos=(800, 560), text_input='600', font=get_font(25), base_color='White', hovering_color='Green')
+
+        AMPLITUDE50.changeColor(MOUSE_POS)
+        AMPLITUDE50.update(SCREEN)
+        AMPLITUDE100.changeColor(MOUSE_POS)
+        AMPLITUDE100.update(SCREEN)
+        AMPLITUDE150.changeColor(MOUSE_POS)
+        AMPLITUDE150.update(SCREEN)
+        AMPLITUDE200.changeColor(MOUSE_POS)
+        AMPLITUDE200.update(SCREEN)
+        AMPLITUDE250.changeColor(MOUSE_POS)
+        AMPLITUDE250.update(SCREEN)
+        AMPLITUDE300.changeColor(MOUSE_POS)
+        AMPLITUDE300.update(SCREEN)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if AMPLITUDE50.checkForInput(MOUSE_POS):
+                    transversal_period_wave(50)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if AMPLITUDE100.checkForInput(MOUSE_POS):
+                    transversal_period_wave(100)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if AMPLITUDE150.checkForInput(MOUSE_POS):
+                    transversal_period_wave(150)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if AMPLITUDE200.checkForInput(MOUSE_POS):
+                    transversal_period_wave(200)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if AMPLITUDE250.checkForInput(MOUSE_POS):
+                    transversal_period_wave(250)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if AMPLITUDE300.checkForInput(MOUSE_POS):
+                    transversal_period_wave(300)
+        pygame.display.update()
+
+
+def spheric_wave(frequency):
+    WAVE_EVENT = pygame.USEREVENT + 1
+    pygame.time.set_timer(WAVE_EVENT, frequency)
     pygame.display.set_caption('Ondas: Simulación')
-    amplitude = 40
-    frequency = 0.1
-    speed = 1
-    start_x = 0
 
     waves = []
 
     while True:
         SCREEN.fill('Black')
         MENU_MOUSE_POS = pygame.mouse.get_pos()
-        BACK_MENU_BUTTON = Button(image=None, pos=(1220,80), text_input='Menú principal', font=get_font(20),
+        BACK_MENU_BUTTON = Button(image=None, pos=(1220, 80), text_input='Menú principal', font=get_font(20),
                                   base_color='#d7fcd4', hovering_color='Green')
-    
+
         BACK_MENU_BUTTON.changeColor(MENU_MOUSE_POS)
         BACK_MENU_BUTTON.update(SCREEN)
-
-        # for x in range(0, 320):
-        #     y = int(amplitude * math.sin(frequency * (x + start_x)) + 40)
-        #     pygame.draw.circle(SCREEN, (255, 255, 255), (x, y), 2)
-        # start_x += speed
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -99,79 +534,167 @@ def wave():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK_MENU_BUTTON.checkForInput(MENU_MOUSE_POS):
                     main_menu()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = event.pos
-                waves.append((mouse_x, mouse_y, 0))
-        
+            if event.type == WAVE_EVENT:
+                waves.append((640, 360, 0))
+
         for i, wave in enumerate(waves):
             x, y, radius = wave
-            if radius < 300:
+            if radius < 640:
                 pygame.draw.circle(SCREEN, (0, 0, 255), (x, y), radius, 2)
                 waves[i] = (x, y, radius + 1)
+        
         clock.tick(60)
         pygame.display.update()
 
-
-def equipotencial_surface(charge):
-    pygame.display.set_caption('Superficies equipotenciales: Simulación')
+def spheric_frequency_wave():
+    pygame.display.set_caption('Escoge el periodo')
 
     while True:
+        MOUSE_POS = pygame.mouse.get_pos()
         SCREEN.fill('Black')
+        TEXT = get_font(45).render('Escoge el periodo de la onda', True, 'White')
+        TEXT_RECT = TEXT.get_rect(center=(640, 140))
+        SCREEN.blit(TEXT, TEXT_RECT)
+
+
+        ZEROTWOFIVEFIVESECOND = Button(image=None, pos=(400, 360), text_input='0.125s', font=get_font(25), base_color='White', hovering_color='Green')
+        ZEROTWOFIVESECOND = Button(image=None, pos=(600, 360), text_input='0.25s', font=get_font(25), base_color='White', hovering_color='Green')
+        ZEROFIVESECOND = Button(image=None, pos=(800, 360), text_input='0.5s', font=get_font(25), base_color='White', hovering_color='Green')
+        ONESECOND = Button(image=None, pos=(400, 560), text_input='1s', font=get_font(25), base_color='White', hovering_color='Green')
+        TWOSECOND = Button(image=None, pos=(600, 560), text_input='2s', font=get_font(25), base_color='White', hovering_color='Green')
+        THREESECOND = Button(image=None, pos=(800, 560), text_input='3s', font=get_font(25), base_color='White', hovering_color='Green')
+
+
+        ZEROTWOFIVEFIVESECOND.changeColor(MOUSE_POS)
+        ZEROTWOFIVEFIVESECOND.update(SCREEN)
+        ZEROTWOFIVESECOND.changeColor(MOUSE_POS)
+        ZEROTWOFIVESECOND.update(SCREEN)
+        ZEROFIVESECOND.changeColor(MOUSE_POS)
+        ZEROFIVESECOND.update(SCREEN)
+        ONESECOND.changeColor(MOUSE_POS)
+        ONESECOND.update(SCREEN)
+        TWOSECOND.changeColor(MOUSE_POS)
+        TWOSECOND.update(SCREEN)
+        THREESECOND.changeColor(MOUSE_POS)
+        THREESECOND.update(SCREEN)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if ZEROTWOFIVEFIVESECOND.checkForInput(MOUSE_POS):
+                    spheric_wave(125)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if ZEROTWOFIVESECOND.checkForInput(MOUSE_POS):
+                    spheric_wave(250)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if ZEROFIVESECOND.checkForInput(MOUSE_POS):
+                    spheric_wave(500)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if ONESECOND.checkForInput(MOUSE_POS):
+                    spheric_wave(1000)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if TWOSECOND.checkForInput(MOUSE_POS):
+                    spheric_wave(2000)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if THREESECOND.checkForInput(MOUSE_POS):
+                    spheric_wave(3000)
+        pygame.display.update()
+
+
+def type_wave():
+    pygame.display.set_caption('Tipos de onda')
+
+    while True:
+        MOUSE_POS = pygame.mouse.get_pos()
+        SCREEN.fill('Black')
+        TEXT = get_font(45).render('Escoge el tipo de onda', True, 'White')
+        TEXT_RECT = TEXT.get_rect(center=(640, 240))
+        SCREEN.blit(TEXT, TEXT_RECT)
+
+        SPHERIC = Button(image=None, pos=(440, 460), text_input='Esféricas 2D', font=get_font(25), base_color='White', hovering_color='Red')
+        TRANSVERSAL = Button(image=None, pos=(840, 460), text_input='Transveral', font=get_font(25), base_color='White', hovering_color='Red')
+
+        SPHERIC.changeColor(MOUSE_POS)
+        SPHERIC.update(SCREEN)
+        # LONGITUDINAL.changeColor(MOUSE_POS)
+        # LONGITUDINAL.update(SCREEN)
+        TRANSVERSAL.changeColor(MOUSE_POS)
+        TRANSVERSAL.update(SCREEN)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if SPHERIC.checkForInput(MOUSE_POS):
+                    spheric_frequency_wave()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if TRANSVERSAL.checkForInput(MOUSE_POS):
+                    transversal_amplitud_wave()
+        pygame.display.update()
+
+
+# def equipotencial_surface(charge):
+def equipotencial_surface():
+    pygame.display.set_caption('Superficies equipotenciales: Simulación')
+
+    CHARGE_RADIUS = 10
+    LINE_SPACING = 25
+    ARROW_LENGTH = 15
+    ARROW_HEAD_SIZE = 5
+
+    def is_charge_clicked(charge, mouse_x, mouse_y):
+        x, y, _ = charge
+        return (x - mouse_x) ** 2 + ( y - mouse_y ) ** 2 <= CHARGE_RADIUS ** 2
+    
+    def electric_field(px, py, charges):
+        Ex = 0
+        Ey = 0
+        for ( x, y, q ) in charges:
+            dx = px - x
+            dy = py - y
+            r_squared = dx**2 + dy**2
+            if r_squared == 0:
+                continue
+            E = q / r_squared
+            Ex += E * dx / math.sqrt(r_squared)
+            Ey += E * dy / math.sqrt(r_squared)
+        return Ex, Ey
+    
+    def draw_arrow(screen, color, start, end, arrow_head_size):
+        pygame.draw.line(screen, color, start, end, 1)
+        angle = math.atan2(end[1] - start[1], end[0] - start[0])
+        arrow_head = [
+            (end[0] - arrow_head_size * math.cos(angle - math.pi / 6), end[1] - arrow_head_size * math.sin(angle - math.pi / 6)),
+            (end[0] - arrow_head_size * math.cos(angle + math.pi / 6), end[1] - arrow_head_size * math.sin(angle + math.pi / 6)),
+            end
+        ]
+        pygame.draw.polygon(screen, color, arrow_head)
+
+    charges = [
+        (WIDTH // 2 - 100, HEIGHT // 2, 1),
+        (WIDTH // 2 + 100, HEIGHT // 2, -1),
+    ]
+    selected_charge_index = None
+    
+    while True:
+        SCREEN.fill('White')
         MENU_MOUSE_POS = pygame.mouse.get_pos()
         BACK_MENU_BUTTON = Button(image=None, pos=(1220,80), text_input='Menú principal', font=get_font(20),
-                                  base_color='#d7fcd4', hovering_color='Green')
+                                  base_color='#000000', hovering_color='Brown')
+        ADD_POSITIVE_BUTTON = Button(image=None, pos=(1220,140), text_input='Añadir positiva', font=get_font(20),
+                                  base_color='Red', hovering_color='Green')
+        ADD_NEGATIVE_BUTTON = Button(image=None, pos=(1220,200), text_input='Añadir negativa', font=get_font(20),
+                                  base_color='Blue', hovering_color='Green')
+
         BACK_MENU_BUTTON.changeColor(MENU_MOUSE_POS)
         BACK_MENU_BUTTON.update(SCREEN)
-
-        # ========================================================= #
-        ### Particle ###
-        pygame.draw.line(SCREEN, 'Green', (250, 360), (1030, 360), 2)
-        pygame.draw.line(SCREEN, 'Green', (640, 20), (640, 700), 2)
-        pygame.draw.line(SCREEN, 'Green', (250, 20), (1030, 700), 2)
-        pygame.draw.line(SCREEN, 'Green', (250, 700), (1030, 20), 2)
-
-
-
-        if charge == 'positive':
-            pygame.draw.circle(SCREEN, (255, 0, 0), (640, 360), 20)
-            pygame.draw.line(SCREEN, 'Green', (820,350), (830, 360), 2)
-            pygame.draw.line(SCREEN, 'Green', (820,370), (830, 360), 2)
-
-            pygame.draw.line(SCREEN, 'Green', (460,350), (450, 360), 2)
-            pygame.draw.line(SCREEN, 'Green', (460,370), (450, 360), 2)
-
-            pygame.draw.line(SCREEN, 'Green', (630,180), (640, 170), 2)
-            pygame.draw.line(SCREEN, 'Green', (650,180), (640, 170), 2)
-
-            pygame.draw.line(SCREEN, 'Green', (630,540), (640, 550), 2)
-            pygame.draw.line(SCREEN, 'Green', (650,540), (640, 550), 2)
-
-            charge_text = '+'
-        if charge == 'negative':
-            pygame.draw.circle(SCREEN, (0, 0, 255), (640, 360), 20)
-            pygame.draw.line(SCREEN, 'Green', (820,350), (810, 360), 2)
-            pygame.draw.line(SCREEN, 'Green', (820,370), (810, 360), 2)
-
-            pygame.draw.line(SCREEN, 'Green', (460,350), (470, 360), 2)
-            pygame.draw.line(SCREEN, 'Green', (460,370), (470, 360), 2)
-
-            pygame.draw.line(SCREEN, 'Green', (630,180), (640, 190), 2)
-            pygame.draw.line(SCREEN, 'Green', (650,180), (640, 190), 2)
-
-            pygame.draw.line(SCREEN, 'Green', (630,540), (640, 530), 2)
-            pygame.draw.line(SCREEN, 'Green', (650,540), (640, 530), 2)
-            charge_text = '-'
-
-
-        text_surface = get_font(25).render(charge_text, True, 'White')
-        SCREEN.blit(text_surface, (635, 346))
-        pygame.draw.circle(SCREEN, (255, 255, 255), (640, 360), 40, width=1)
-        pygame.draw.circle(SCREEN, (255, 255, 255), (640, 360), 80, width=1)
-        pygame.draw.circle(SCREEN, (255, 255, 255), (640, 360), 160, width=1)
-        pygame.draw.circle(SCREEN, (255, 255, 255), (640, 360), 320, width=1)
-        pygame.draw.circle(SCREEN, (255, 255, 255), (640, 360), 500, width=1)
-
-
+        ADD_POSITIVE_BUTTON.changeColor(MENU_MOUSE_POS)
+        ADD_POSITIVE_BUTTON.update(SCREEN)
+        ADD_NEGATIVE_BUTTON.changeColor(MENU_MOUSE_POS)
+        ADD_NEGATIVE_BUTTON.update(SCREEN)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -180,6 +703,35 @@ def equipotencial_surface(charge):
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK_MENU_BUTTON.checkForInput(MENU_MOUSE_POS):
                     main_menu()
+                if ADD_POSITIVE_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    charges.append((WIDTH // 2, HEIGHT // 2, 1))
+                if ADD_NEGATIVE_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    charges.append((WIDTH // 2, HEIGHT // 2, -1))
+                mouse_x, mouse_y = event.pos
+                for i, charge in enumerate(charges):
+                    if is_charge_clicked(charge, mouse_x, mouse_y):
+                        selected_charge_index = i
+                        break
+            if event.type == pygame.MOUSEBUTTONUP:
+                selected_charge_index = None
+            if event.type == pygame.MOUSEMOTION and selected_charge_index is not None:
+                mouse_x, mouse_y = event.pos
+                x, y, q = charges[selected_charge_index]
+                charges[selected_charge_index] = (mouse_x, mouse_y, q)
+        for (x, y, q) in charges:
+            color = (255, 0, 0) if q > 0 else (0, 0, 255)
+            pygame.draw.circle(SCREEN, color, (x, y), CHARGE_RADIUS)
+        
+        for y in range(0, HEIGHT, LINE_SPACING):
+            for x in range(0, WIDTH, LINE_SPACING):
+                Ex, Ey = electric_field(x, y, charges)
+                magnitude = math.sqrt(Ex**2 + Ey**2)
+                if magnitude > 0:
+                    Ex /= magnitude
+                    Ey /= magnitude
+                    end_x = x + Ex * ARROW_LENGTH
+                    end_y = y + Ey * ARROW_LENGTH
+                    draw_arrow(SCREEN, (0, 0, 0), (x, y), (end_x, end_y), ARROW_HEAD_SIZE)
         pygame.display.update()
 
 
@@ -633,13 +1185,20 @@ def main_menu():
                         )
 
         INTERFERENCE_BUTTON = Button(image=pygame.image.load('assets/static/images/options.png'),
-                            pos=(1000, 400), text_input='INTERFERENCIA', font=get_font(35),
+                            pos=(1000, 400), text_input='LENTES', font=get_font(35),
                             base_color='#d7fcd4', hovering_color='White'
                         )
 
+        DIFFRACTION_BUTTON = Button(image=pygame.image.load('assets/static/images/options.png'),
+                            pos=(1000, 550), text_input='CAMPO MAGNÉTICO', font=get_font(35),
+                            base_color='#d7fcd4', hovering_color='White'
+                        )
+
+
+
         MILEVA_BUTTON = Button(image=None, pos=(1200,680), text_input='MilevaDot', font=get_font(20), base_color='#b68f40', hovering_color='Green')
 
-        for button in [PARABOLIC_BUTTON,SHM_BUTTON,EQUIPOTENTIALS_BUTTON,WAVES_BUTTON,INTERFERENCE_BUTTON,MILEVA_BUTTON]:
+        for button in [PARABOLIC_BUTTON,SHM_BUTTON,EQUIPOTENTIALS_BUTTON,WAVES_BUTTON,INTERFERENCE_BUTTON,MILEVA_BUTTON,DIFFRACTION_BUTTON]:
             button.changeColor(MENU_MOUSE_POS)
             button.update(SCREEN)
 
@@ -655,11 +1214,14 @@ def main_menu():
                 if SHM_BUTTON.checkForInput(MENU_MOUSE_POS):
                     pendulum_length()
                 if EQUIPOTENTIALS_BUTTON.checkForInput(MENU_MOUSE_POS):
-                    charge()
+                    # charge()
+                    equipotencial_surface()
                 if WAVES_BUTTON.checkForInput(MENU_MOUSE_POS):
-                    wave()
+                    type_wave()
                 if INTERFERENCE_BUTTON.checkForInput(MENU_MOUSE_POS):
-                    interference()
+                    lens_simulation()
+                if DIFFRACTION_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    magnetic_field_simulation()
         pygame.display.update()
 
 
