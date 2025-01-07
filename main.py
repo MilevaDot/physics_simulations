@@ -2,7 +2,6 @@ import pygame
 import pygame_gui
 import math
 import sys
-import time
 from button import Button
 
 pygame.init()
@@ -38,6 +37,28 @@ def lens_simulation():
     GREEN = (0, 255, 0)
     YELLOW = (255, 255, 0)
 
+    def draw_dotted_arrow(screen, color, start, end, arrow_size=10, dash_length=10, gap_length=5):
+        total_length = math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2)
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        angle = math.atan2(dy, dx)
+
+        num_dashes = int(total_length // (dash_length + gap_length))
+        for i in range(num_dashes):
+            start_dash_x = start[0] + (i * (dash_length + gap_length)) * math.cos(angle)
+            start_dash_y = start[1] + (i * (dash_length + gap_length)) * math.sin(angle)
+            end_dash_x = start_dash_x + dash_length * math.cos(angle)
+            end_dash_y = start_dash_y + dash_length * math.sin(angle)
+
+            pygame.draw.line(screen, color, (start_dash_x, start_dash_y), (end_dash_x, end_dash_y), 2)
+
+        arrow_points = [
+            (end[0] - arrow_size * math.cos(angle - math.pi / 6), end[1] - arrow_size * math.sin(angle - math.pi / 6)),
+            (end[0] - arrow_size * math.cos(angle + math.pi / 6), end[1] - arrow_size * math.sin(angle + math.pi / 6))
+        ]
+        pygame.draw.polygon(screen, color, [end, *arrow_points])
+
+
     def draw_arrow(screen, color, start, end, arrow_size=10):
         pygame.draw.line(screen, color, start, end, 2)
         angle = math.atan2(end[1] - start[1], end[0] - start[0])
@@ -67,15 +88,14 @@ def lens_simulation():
             self.converging = converging
 
         def draw(self):
+            pygame.draw.line(SCREEN, WHITE, (0, CENTER_Y), (WIDTH, CENTER_Y), 1)
+            pygame.draw.line(SCREEN, WHITE, (CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X, CENTER_Y + LENS_HEIGHT // 2), 5)
             if self.converging:
-                pygame.draw.line(SCREEN, WHITE, (0, CENTER_Y), (WIDTH, CENTER_Y), 1)
-                pygame.draw.line(SCREEN, WHITE, (CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X, CENTER_Y + LENS_HEIGHT // 2), 5)
                 pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X - 20, CENTER_Y - LENS_HEIGHT // 2 + 20), (CENTER_X + 20, CENTER_Y - LENS_HEIGHT // 2 + 20)])
                 pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y + LENS_HEIGHT // 2), (CENTER_X - 20, CENTER_Y + LENS_HEIGHT // 2 - 20), (CENTER_X + 20, CENTER_Y + LENS_HEIGHT // 2 - 20)])
             else:
-                pygame.draw.line(SCREEN, WHITE, (CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X, CENTER_Y + LENS_HEIGHT // 2), 5)
-                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X + 20, CENTER_Y - LENS_HEIGHT // 2 + 20), (CENTER_X - 20, CENTER_Y - LENS_HEIGHT // 2 + 20)])
-                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y + LENS_HEIGHT // 2), (CENTER_X + 20, CENTER_Y + LENS_HEIGHT // 2 - 20), (CENTER_X - 20, CENTER_Y + LENS_HEIGHT // 2 - 20)])
+                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y - LENS_HEIGHT // 2 + 20), (CENTER_X + 20, CENTER_Y - LENS_HEIGHT // 2), (CENTER_X - 20, CENTER_Y - LENS_HEIGHT // 2)])
+                pygame.draw.polygon(SCREEN, WHITE, [(CENTER_X, CENTER_Y + LENS_HEIGHT // 2 - 20), (CENTER_X + 20, CENTER_Y + LENS_HEIGHT // 2), (CENTER_X - 20, CENTER_Y + LENS_HEIGHT // 2)])
 
     def calculate_intersection(line1_start, line1_end, line2_start, line2_end):
         x1, y1 = line1_start
@@ -106,41 +126,109 @@ def lens_simulation():
         SCREEN.blit(f2_label, (f2[0] + 10, f2[1] + 10))
 
         if lens.converging:
-            ray_start = (obj.x, CENTER_Y - obj.height)
-            ray_focus_end = f2
-            ray_parallel_end = (CENTER_X, CENTER_Y - obj.height)
+            if obj.x < f1[0]:
+                ray_start = (obj.x, CENTER_Y - obj.height)
+                ray_focus_end = f2
+                ray_parallel_end = (CENTER_X, CENTER_Y - obj.height)
+
+                draw_arrow(SCREEN, BLUE, ray_start, ray_parallel_end)
+                draw_arrow(SCREEN, BLUE, ray_parallel_end, ray_focus_end)
+                draw_arrow(SCREEN, BLUE, ray_start, (CENTER_X, CENTER_Y))
+
+                ray_guide_center_start = (obj.x, CENTER_Y - obj.height)
+                if CENTER_X - ray_guide_center_start[0] == 0:
+                    slope_center = ( CENTER_Y - ray_guide_center_start[1]) / ( CENTER_X - ray_guide_center_start[0] + 0.1 )
+                else:
+                    slope_center = ( CENTER_Y - ray_guide_center_start[1]) / ( CENTER_X - ray_guide_center_start[0])
+                max_center_x = WIDTH - 20
+                max_center_y = ray_guide_center_start[1] + slope_center * (max_center_x - ray_guide_center_start[0])
+                ray_center_end = (max_center_x, max_center_y)
+                draw_arrow(SCREEN, BLUE, ray_guide_center_start, ray_center_end)
+
+                ray_focus_start = (obj.x, CENTER_Y - obj.height)
+                if f1[0] - ray_focus_start[0] == 0:
+                    slope = (f1[1] - ray_focus_start[1]) / (f1[0] - ray_focus_start[0] + 0.1)
+                else:
+                    slope = (f1[1] - ray_focus_start[1]) / (f1[0] - ray_focus_start[0])
+                lens_intersect_y = int(ray_focus_start[1] + slope * (CENTER_X - ray_focus_start[0]))
+                ray_parallel_end = (CENTER_X, lens_intersect_y)
+                draw_arrow(SCREEN, BLUE, ray_focus_start, f1)
+                draw_arrow(SCREEN, BLUE, f1, ray_parallel_end)  # Esta es la que empieza en f1 y se va hasta la lente
+                draw_arrow(SCREEN, BLUE, ray_parallel_end, (WIDTH - 20,lens_intersect_y))  # Esta es la que empieza en la lente y se va a la derecha
+
+                ray_parallel_end_new = (CENTER_X, CENTER_Y - obj.height)
+                slope_f2 = (f2[1] - ray_parallel_end_new[1]) / (f2[0] - ray_parallel_end_new[0])  # Pendiente entre F2 y el borde derecho
+                max_x = WIDTH - 20
+                max_y = ray_parallel_end_new[1] + slope_f2 * (max_x - ray_parallel_end_new[0])
+                ray_f2_end = (max_x, max_y)
+                draw_arrow(SCREEN, BLUE, f2, ray_f2_end)  # Dibuja flecha desde F2 hacia la derecha hasta ray_f2_end
+
+                intersection = calculate_intersection(f2, ray_f2_end, ray_parallel_end, (WIDTH - 20, lens_intersect_y))
+                if intersection:
+                    draw_arrow(SCREEN, GREEN, (intersection[0], CENTER_Y), intersection)
+            else:
+                ray_start = (obj.x, CENTER_Y - obj.height)
+                draw_arrow(SCREEN, BLUE, ray_start, (CENTER_X, CENTER_Y))
+                ray_start = (obj.x, CENTER_Y - obj.height)
+                if CENTER_X - ray_start[0] == 0:
+                    slope_center = ( CENTER_Y - ray_start[1]) / ( CENTER_X - ray_start[0] + 0.1 )
+                else:
+                    slope_center = ( CENTER_Y - ray_start[1]) / ( CENTER_X - ray_start[0])
+                max_center_x = WIDTH - 400
+                max_center_y = ray_start[1] + slope_center * (max_center_x - ray_start[0])
+                ray_center_end = (max_center_x, max_center_y)
+                draw_arrow(SCREEN, BLUE, ray_start, ray_center_end)
+
+                ray_center_out_end = ray_start[1] + slope_center * (WIDTH - 1230 - ray_start[0])
+
+                ray_parallel_end = (CENTER_X, CENTER_Y - obj.height)
+                draw_arrow(SCREEN, BLUE, ray_start, ray_parallel_end)
+                draw_arrow(SCREEN, BLUE, ray_parallel_end, f2)
+                f2_focal_slope = (f2[1] - ray_parallel_end[1]) / (f2[0] - ray_parallel_end[0])
+                ray_f2_focal_out_end = ray_parallel_end[1] + f2_focal_slope * (WIDTH - 1230 - ray_parallel_end[0])
+
+                intersection = calculate_intersection((WIDTH - 1230, ray_f2_focal_out_end), ray_parallel_end, (WIDTH - 1230, ray_center_out_end), ray_start)
+
+
+                if intersection:
+                    draw_arrow(SCREEN, GREEN, (intersection[0], CENTER_Y), intersection)
+                    draw_dotted_arrow(SCREEN, BLUE, intersection, ray_start, dash_length=10, gap_length=5)
+                    draw_dotted_arrow(SCREEN, BLUE, intersection, ray_parallel_end, dash_length=10, gap_length=5)
+                    draw_arrow(SCREEN, BLUE, ray_start, (CENTER_X, intersection[1]))
+                    draw_arrow(SCREEN, BLUE, (CENTER_X, intersection[1]), (WIDTH - 400, intersection[1]))
+                    draw_dotted_arrow(SCREEN, BLUE, intersection, (CENTER_X, intersection[1]), dash_length=10, gap_length=5)
+
+
         else:
-            ray_start = (obj.x, CENTER_Y - obj.height)
+            ray_parallel_start = (obj.x, CENTER_Y - obj.height)
             ray_parallel_end = (CENTER_X, CENTER_Y - obj.height)
-            ray_focus_end = (CENTER_X - (CENTER_X - obj.x), CENTER_Y - (CENTER_Y - obj.height))
+            draw_arrow(SCREEN, BLUE, ray_parallel_start, ray_parallel_end)
+            ray_parallel_aux_start = f1
+            
+            parallel_slope = (ray_parallel_end[1] - f1[1]) / (ray_parallel_end[0] - f1[0])
+            ray_parallel_out_end = ray_parallel_end[1] + parallel_slope * (WIDTH - 500 - ray_parallel_end[0])
 
-        draw_arrow(SCREEN, BLUE, ray_start, ray_parallel_end)
-        draw_arrow(SCREEN, BLUE, ray_parallel_end, ray_focus_end)
+            draw_arrow(SCREEN, BLUE, ray_parallel_end, (WIDTH - 500, ray_parallel_out_end))
 
-        if lens.converging:
-            ray_focus_start = (obj.x, CENTER_Y - obj.height)
-            slope = (f1[1] - ray_focus_start[1]) / (f1[0] - ray_focus_start[0])
-            lens_intersect_y = int(ray_focus_start[1] + slope * (CENTER_X - ray_focus_start[0]))
-            ray_parallel_end = (CENTER_X, lens_intersect_y)
-        else:
-            ray_focus_start = (obj.x, CENTER_Y - obj.height)
-            ray_parallel_end = f2
-        draw_arrow(SCREEN, BLUE, ray_focus_start, f1)
-        if lens.converging:
-            draw_arrow(SCREEN, BLUE, f1, ray_parallel_end)  # Esta es la que empieza en f1 y se va hasta la lente
-            draw_arrow(SCREEN, BLUE, ray_parallel_end, (WIDTH - 20,lens_intersect_y))  # Esta es la que empieza en la lente y se va a la derecha
+            ray_center_start = (obj.x, CENTER_Y - obj.height)
+            ray_center_end = (CENTER_X, CENTER_Y)
+            draw_arrow(SCREEN, BLUE, ray_center_start, ray_center_end)
 
-        if lens.converging:
-            ray_parallel_end_new = (CENTER_X, CENTER_Y - obj.height)
-            slope_f2 = (f2[1] - ray_parallel_end_new[1]) / (f2[0] - ray_parallel_end_new[0])  # Pendiente entre F2 y el borde derecho
-            max_x = WIDTH - 20
-            max_y = ray_parallel_end_new[1] + slope_f2 * (max_x - ray_parallel_end_new[0])
-            ray_f2_end = (max_x, max_y)
-            draw_arrow(SCREEN, BLUE, f2, ray_f2_end)  # Dibuja flecha desde F2 hacia la derecha hasta ray_f2_end
+            ray_f2_start = (obj.x, CENTER_Y - obj.height)
+            if CENTER_X - ray_center_start[0] == 0:
+                ray_center_slope = (CENTER_Y - ray_center_start[1]) / (CENTER_X - ray_center_start[0] + 0.1)
+            else:
+                ray_center_slope = (CENTER_Y - ray_center_start[1]) / (CENTER_X - ray_center_start[0])
+            ray_center_out_end = ray_center_start[1] + ray_center_slope * (WIDTH - 300 - ray_center_start[0])
+            draw_arrow(SCREEN, BLUE, (CENTER_X, CENTER_Y), (WIDTH - 300, ray_center_out_end))
 
-        intersection = calculate_intersection(f2, ray_f2_end, ray_parallel_end, (WIDTH - 20, lens_intersect_y))
-        if intersection:
-            draw_arrow(SCREEN, GREEN, (intersection[0], CENTER_Y), intersection)
+            intersection = calculate_intersection(ray_parallel_aux_start, ray_parallel_end, ray_center_start, ray_center_end)
+            if intersection:
+                draw_arrow(SCREEN, GREEN, (intersection[0], CENTER_Y), intersection)
+                draw_dotted_arrow(SCREEN, BLUE, intersection, ray_parallel_end, dash_length=10, gap_length=5)
+                draw_dotted_arrow(SCREEN, BLUE, intersection, (CENTER_X, intersection[1]), dash_length=10, gap_length=5)
+                draw_arrow(SCREEN, BLUE, ray_f2_start, (CENTER_X, intersection[1]))
+                draw_arrow(SCREEN, BLUE, (CENTER_X, intersection[1]), (WIDTH - 400, intersection[1]))
 
     obj = ObjectArrow()
     lens = Lens(converging=True)
@@ -148,13 +236,33 @@ def lens_simulation():
     running = True
     while running:
         SCREEN.fill(BLACK)
+        MENU_MOUSE_POS = pygame.mouse.get_pos()
+        BACK_MENU_BUTTON = Button(image=None, pos=(1220,80), text_input='Menú principal', font=get_font(20),
+                                  base_color='#FFFFFF', hovering_color='Brown')
+        CONVERGENT_BUTTON = Button(image=None, pos=(100, 80), text_input='Lente convergente', font=get_font(20),
+                                  base_color='#FFFFFF', hovering_color='Brown')
+        DIVERGENTE_BUTTON = Button(image=None, pos=(240, 80), text_input='Lente divergente', font=get_font(20),
+                                  base_color='#FFFFFF', hovering_color='Brown')
+        BACK_MENU_BUTTON.changeColor(MENU_MOUSE_POS)
+        BACK_MENU_BUTTON.update(SCREEN)
+        CONVERGENT_BUTTON.changeColor(MENU_MOUSE_POS)
+        CONVERGENT_BUTTON.update(SCREEN)
+        DIVERGENTE_BUTTON.changeColor(MENU_MOUSE_POS)
+        DIVERGENTE_BUTTON.update(SCREEN)
+
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                if BACK_MENU_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    main_menu()
                 if obj.x - 20 < event.pos[0] < obj.x + 20 and CENTER_Y - obj.height - 20 < event.pos[1] < CENTER_Y:
                     obj.dragging = True
+                if CONVERGENT_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    lens_simulation()
+                if DIVERGENTE_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    lens.converging = False
             elif event.type == pygame.MOUSEBUTTONUP:
                 obj.dragging = False
             elif event.type == pygame.KEYDOWN:
