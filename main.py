@@ -15,6 +15,8 @@ clock = pygame.time.Clock()
 UI_REFRESH_RATE = clock.tick(FPS)/1000
 BACKGROUND = pygame.image.load('assets/static/background/main_menu.png')
 
+favicon = pygame.image.load('assets/static/images/favicon.png')
+pygame.display.set_icon(favicon)
 
 def get_font(size):
     # return pygame.font.Font('assets/static/font.ttf', size)
@@ -364,11 +366,19 @@ def magnetic_field_simulation():
     while True:
         SCREEN.fill(BACKGROUND_COLOR)
 
+        MOUSE_POS = pygame.mouse.get_pos()
+        BACK_MENU_BUTTON = Button(image=None, pos=(1200,90), text_input='Menú principal', font=get_font(25),
+                                  base_color='Brown', hovering_color='Black')
+        BACK_MENU_BUTTON.changeColor(MOUSE_POS)
+        BACK_MENU_BUTTON.update(SCREEN)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
+                if BACK_MENU_BUTTON.checkForInput(MOUSE_POS):
+                    main_menu()
                 mouse_x, mouse_y = event.pos
                 if button_rect.collidepoint(mouse_x, mouse_y):
                     magnets.append((mouse_x, mouse_y, 1, -1))  # Nuevo dipolo en la posición del clic
@@ -612,15 +622,20 @@ def spheric_wave(frequency):
     pygame.display.set_caption('Ondas: Simulación')
 
     waves = []
+    wave_stop = False
 
     while True:
         SCREEN.fill('Black')
         MENU_MOUSE_POS = pygame.mouse.get_pos()
         BACK_MENU_BUTTON = Button(image=None, pos=(1220, 80), text_input='Menú principal', font=get_font(20),
                                   base_color='#d7fcd4', hovering_color='Green')
+        STOP_BUTTON = Button(image=None, pos=(1220, 600), text_input='STOP', font=get_font(20),
+                                  base_color='#d7fcd4', hovering_color='Green')
 
         BACK_MENU_BUTTON.changeColor(MENU_MOUSE_POS)
         BACK_MENU_BUTTON.update(SCREEN)
+        STOP_BUTTON.changeColor(MENU_MOUSE_POS)
+        STOP_BUTTON.update(SCREEN)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -629,13 +644,15 @@ def spheric_wave(frequency):
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK_MENU_BUTTON.checkForInput(MENU_MOUSE_POS):
                     main_menu()
-            if event.type == WAVE_EVENT:
+                if STOP_BUTTON.checkForInput(MENU_MOUSE_POS):
+                    wave_stop = not wave_stop
+            if event.type == WAVE_EVENT and not wave_stop:
                 waves.append((640, 360, 0))
 
         for i, wave in enumerate(waves):
             x, y, radius = wave
-            if radius < 640:
-                pygame.draw.circle(SCREEN, (0, 0, 255), (x, y), radius, 2)
+            pygame.draw.circle(SCREEN, (0, 0, 255), (x, y), radius, 2)
+            if not wave_stop and radius < 640:
                 waves[i] = (x, y, radius + 1)
         
         clock.tick(60)
@@ -864,7 +881,7 @@ def shm(length, angle):
     y = 0
     gravity = 10
     time_elapsed = 0
-    pendulum_length = length
+    pendulum_length = length * 100
     pendulum_angle = math.radians(angle)
     av = 0
     trajectory = []
@@ -898,7 +915,7 @@ def shm(length, angle):
         text_surface = get_font(20).render(initial_angle_text, True, 'White')
         SCREEN.blit(text_surface, (640, 80))
 
-        initial_length_text = 'Longitud del péndulo(m): %s' % ( pendulum_length )
+        initial_length_text = 'Longitud del péndulo(m): %s' % ( pendulum_length / 100 )
         text_surface = get_font(20).render(initial_length_text, True, 'White')
         SCREEN.blit(text_surface, (640, 120))
 
@@ -906,7 +923,7 @@ def shm(length, angle):
         text_surface = get_font(20).render(position_x_text, True, 'White')
         SCREEN.blit(text_surface, (640, 160))
 
-        position_y_text = 'Posición y: %s' % ( round(y - 39, 2) )
+        position_y_text = 'Posición y: %s' % ( round((y - 39) / 100, 2) )
         text_surface = get_font(20).render(position_y_text, True, 'White')
         SCREEN.blit(text_surface, (640, 200))
 
@@ -936,7 +953,7 @@ def shm(length, angle):
 def pendulum_initial_angle(pendulum_length):
     pygame.display.set_caption('Movimiento armónico simple: condiciones iniciales - Ángulo')
     manager = pygame_gui.UIManager((WIDTH,HEIGHT))
-    pendulum_initial_angle = pygame_gui.elements.UITextEntryLine(
+    pendulum_initial_angle_input = pygame_gui.elements.UITextEntryLine(
         relative_rect=pygame.Rect((485,300), (300,80)),
         manager=manager,
         object_id='#pendulum_initial_angle',
@@ -961,13 +978,17 @@ def pendulum_initial_angle(pendulum_length):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED and event.ui_object_id == '#pendulum_initial_angle':
-                pendulum_angle_value = float(event.text)
+            # if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED and event.ui_object_id == '#pendulum_initial_angle':
+            #     pendulum_angle_value = float(event.text)
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK.checkForInput(MOUSE_POS):
                     main_menu()
                 if NEXT.checkForInput(MOUSE_POS):
-                    shm(pendulum_length, pendulum_angle_value)
+                    try:
+                        pendulum_initial_angle_value = float(pendulum_initial_angle_input.get_text())
+                        shm(pendulum_length, pendulum_initial_angle_value)
+                    except ValueError:
+                        print('Por favor, ingrese un número válido')
 
             manager.process_events(event)
         manager.update(UI_REFRESH_RATE)
@@ -978,7 +999,7 @@ def pendulum_initial_angle(pendulum_length):
 def pendulum_length():
     pygame.display.set_caption('Movimiento armónico simple: condiciones iniciales - Longitud')
     manager = pygame_gui.UIManager((WIDTH,HEIGHT))
-    pendulum_length = pygame_gui.elements.UITextEntryLine(
+    pendulum_length_input = pygame_gui.elements.UITextEntryLine(
         relative_rect=pygame.Rect((485,300), (300,80)),
         manager=manager,
         object_id='#pendulum_length',
@@ -1003,13 +1024,17 @@ def pendulum_length():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED and event.ui_object_id == '#pendulum_length':
-                pendulum_length_value = float(event.text)
+            # if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED and event.ui_object_id == '#pendulum_length':
+            #     pendulum_length_value = float(event.text)
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK.checkForInput(MOUSE_POS):
                     main_menu()
                 if NEXT.checkForInput(MOUSE_POS):
-                    pendulum_initial_angle(pendulum_length_value)
+                    try:
+                        initial_length_value = float(pendulum_length_input.get_text())
+                        pendulum_initial_angle(initial_length_value)
+                    except ValueError:
+                        print('Por favor, ingrese un valor válido.')
 
             manager.process_events(event)
         manager.update(UI_REFRESH_RATE)
@@ -1167,7 +1192,7 @@ def parabolic_movement(initial_velocity, initial_angle):
 def initial_angle(initial_velocity):
     pygame.display.set_caption('Movimiento parabólico: condiciones iniciales - ángulo')
     manager = pygame_gui.UIManager((WIDTH,HEIGHT))
-    initial_angle = pygame_gui.elements.UITextEntryLine(
+    initial_angle_input = pygame_gui.elements.UITextEntryLine(
         relative_rect=pygame.Rect((485,300), (300, 80)),
         manager=manager,
         object_id='#initial_angle'
@@ -1191,13 +1216,17 @@ def initial_angle(initial_velocity):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED and event.ui_object_id == '#initial_angle':
-                initial_angle_value = float(event.text) or None
+            # if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED and event.ui_object_id == '#initial_angle':
+            #     initial_angle_value = float(event.text) or None
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK.checkForInput(MOUSE_POS):
                     initial_velocity()
                 if NEXT.checkForInput(MOUSE_POS):
-                    parabolic_movement(initial_velocity,initial_angle_value)
+                    try:
+                        initial_angle_value = float(initial_angle_input.get_text())
+                        parabolic_movement(initial_velocity,initial_angle_value)
+                    except ValueError:
+                        print('Por favor, ingrese un número válido')
             manager.process_events(event)
         manager.update(UI_REFRESH_RATE)
         manager.draw_ui(SCREEN)
@@ -1207,11 +1236,13 @@ def initial_angle(initial_velocity):
 def initial_velocity():
     pygame.display.set_caption('Movimiento parabólico: condiciones iniciales - velocidad')
     manager = pygame_gui.UIManager((WIDTH,HEIGHT))
-    initial_velocity = pygame_gui.elements.UITextEntryLine(
-        relative_rect=pygame.Rect((485,300), (300,80)),
-        manager=manager,
-        object_id='#initial_velocity',
+    velocity_slider = pygame_gui.elements.UIHorizontalSlider(
+        relative_rect=pygame.Rect((485, 300), (300, 40)),
+        start_value=30,
+        value_range=(30, 100),
+        manager=manager
     )
+
     while True:
         MOUSE_POS = pygame.mouse.get_pos()
 
@@ -1220,6 +1251,12 @@ def initial_velocity():
         TEXT = get_font(45).render('Velocidad inicial(m/s)', True, 'white')
         TEXT_RECT = TEXT.get_rect(center=(640,240))
         SCREEN.blit(TEXT, TEXT_RECT)
+
+        ### HEre ###
+        velocity_value = int(velocity_slider.get_current_value())
+        velocity_text = get_font(30).render(f'Valor: {velocity_value}', True, 'white')
+        SCREEN.blit(velocity_text, (600, 350))
+        ### ###
 
         BACK = Button(image=None, pos=(540,460), text_input='Atrás', font=get_font(25), base_color='White', hovering_color='Green')
         NEXT = Button(image=None, pos=(740,460), text_input='Siguiente', font=get_font(25), base_color='White', hovering_color='Green')
@@ -1233,13 +1270,11 @@ def initial_velocity():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED and event.ui_object_id == '#initial_velocity':
-                initial_velocity_value = float(event.text)
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if BACK.checkForInput(MOUSE_POS):
                     main_menu()
                 if NEXT.checkForInput(MOUSE_POS):
-                    initial_angle(initial_velocity_value)
+                    initial_angle(velocity_value)
 
             manager.process_events(event)
         manager.update(UI_REFRESH_RATE)
